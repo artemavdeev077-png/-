@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>OSINT Map</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            margin: 0; padding: 0; background-color: #0d0d0d; color: #fff;
+            font-family: Arial, sans-serif; overflow: hidden;
+        }
+        /* Темный холст в сеточку */
+        #cy {
+            width: 100vw; height: 75vh;
+            background-image: radial-gradient(#333 1px, transparent 0);
+            background-size: 20px 20px;
+        }
+        /* Панель с узлами (NODES) */
+        .toolbar {
+            height: 25vh; background: #151515; border-top: 2px solid #222;
+            padding: 10px; display: flex; flex-wrap: wrap; gap: 10px; overflow-y: auto;
+        }
+        .node-btn {
+            background: #222; border: 1px solid #333; border-radius: 10px;
+            color: #aaa; width: 80px; height: 80px; cursor: pointer;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 10px; text-align: center;
+        }
+        .node-btn:active { background: #333; }
+        /* Инвертируем твои белые фото в темные */
+        .node-btn img { width: 35px; height: 35px; margin-bottom: 5px; filter: invert(1) brightness(0.8); }
+    </style>
+</head>
+<body>
+
+    <div id="cy"></div>
+    
+    <div class="toolbar" id="toolbar">
+        <div class="node-btn" onclick="addNode('Персона', '#ff4d4d')">Персона</div>
+        <div class="node-btn" onclick="addNode('Адрес', '#4da6ff')">Адрес</div>
+        <div class="node-btn" onclick="addNode('Домен', '#4dff4d')">Домен</div>
+        <div class="node-btn" onclick="addNode('Паспорт', '#ffff4d')">Паспорт</div>
+        <div class="node-btn" onclick="addNode('ID Соцсети', '#ff4da6')">ID Соцсети</div>
+        <div class="node-btn" onclick="addNode('Telegram ID', '#4dffff')">Telegram ID</div>
+        <div class="node-btn" onclick="addNode('IP Адрес', '#ffa64d')">IP Адрес</div>
+        <div class="node-btn" onclick="addNode('Компания', '#b34dff')">Компания</div>
+    </div>
+
+    <script>
+        // Инициализация Telegram Web App
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Разворачиваем на весь экран
+
+        // Настройка холста
+        let cy = cytoscape({
+            container: document.getElementById('cy'),
+            style: [
+                {
+                    selector: 'node',
+                    style: {
+                        'background-color': 'data(color)',
+                        'label': 'data(label)',
+                        'color': '#fff',
+                        'text-outline-color': '#000',
+                        'text-outline-width': 2,
+                        'text-valign': 'bottom',
+                        'text-margin-y': 5
+                    }
+                },
+                {
+                    selector: 'edge',
+                    style: {
+                        'width': 2,
+                        'line-color': '#555',
+                        'target-arrow-color': '#555',
+                        'target-arrow-shape': 'triangle',
+                        'curve-style': 'bezier'
+                    }
+                }
+            ],
+            elements: []
+        });
+
+        let nodeIdCounter = 0;
+        let selectedNode = null;
+
+        // Функция добавления узла (выскакивает окно ввода)
+        function addNode(category, color) {
+            let info = prompt(`BOTCONNSINT\nВведите данные для: ${category}`);
+            if (info) {
+                let id = 'node' + nodeIdCounter++;
+                cy.add({
+                    group: 'nodes',
+                    data: { id: id, label: info, color: color },
+                    position: { x: cy.width() / 2, y: cy.height() / 2 } // Появляется по центру
+                });
+            }
+        }
+
+        // Логика соединения линиями (тапнул на один, тапнул на другой)
+        cy.on('tap', 'node', function(evt){
+            let node = evt.target;
+            if (!selectedNode) {
+                selectedNode = node;
+                node.style('border-width', 4).style('border-color', '#fff'); // Подсветка при выборе
+            } else {
+                // Создаем линию
+                cy.add({
+                    group: 'edges',
+                    data: { source: selectedNode.id(), target: node.id() }
+                });
+                selectedNode.style('border-width', 0); // Убираем подсветку
+                selectedNode = null;
+            }
+        });
+
+        // Сброс выбора при тапе на пустой фон
+        cy.on('tap', function(evt){
+            if(evt.target === cy && selectedNode) {
+                selectedNode.style('border-width', 0);
+                selectedNode = null;
+            }
+        });
+    </script>
+</body>
+</html>
