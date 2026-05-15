@@ -1,128 +1,93 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>OSINT Map</title>
+    <title>BOTCONNSINT Map</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body {
-            margin: 0; padding: 0; background-color: #0d0d0d; color: #fff;
-            font-family: Arial, sans-serif; overflow: hidden;
+        body { margin: 0; background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        #cy { width: 100vw; height: 70vh; background-image: radial-gradient(#222 1px, transparent 0); background-size: 25px 25px; }
+        
+        .toolbar { 
+            height: 30vh; background: #0a0a0a; border-top: 1px solid #1a1a1a;
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 10px;
         }
-        /* Темный холст в сеточку */
-        #cy {
-            width: 100vw; height: 75vh;
-            background-image: radial-gradient(#333 1px, transparent 0);
-            background-size: 20px 20px;
-        }
-        /* Панель с узлами (NODES) */
-        .toolbar {
-            height: 25vh; background: #151515; border-top: 2px solid #222;
-            padding: 10px; display: flex; flex-wrap: wrap; gap: 10px; overflow-y: auto;
-        }
+        
         .node-btn {
-            background: #222; border: 1px solid #333; border-radius: 10px;
-            color: #aaa; width: 80px; height: 80px; cursor: pointer;
+            background: #111; border: 1px solid #222; border-radius: 8px;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            font-size: 10px; text-align: center;
+            font-size: 9px; color: #777; cursor: pointer;
         }
-        .node-btn:active { background: #333; }
-        /* Инвертируем твои белые фото в темные */
-        .node-btn img { width: 35px; height: 35px; margin-bottom: 5px; filter: invert(1) brightness(0.8); }
+        .node-btn img { width: 28px; height: 28px; margin-bottom: 5px; filter: grayscale(1) invert(0.8); }
+
+        .modal {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 12px;
+            width: 80%; padding: 20px; z-index: 1000;
+        }
     </style>
 </head>
 <body>
 
-    <div id="cy"></div>
-    
-    <div class="toolbar" id="toolbar">
-        <div class="node-btn" onclick="addNode('Персона', '#ff4d4d')">Персона</div>
-        <div class="node-btn" onclick="addNode('Адрес', '#4da6ff')">Адрес</div>
-        <div class="node-btn" onclick="addNode('Домен', '#4dff4d')">Домен</div>
-        <div class="node-btn" onclick="addNode('Паспорт', '#ffff4d')">Паспорт</div>
-        <div class="node-btn" onclick="addNode('ID Соцсети', '#ff4da6')">ID Соцсети</div>
-        <div class="node-btn" onclick="addNode('Telegram ID', '#4dffff')">Telegram ID</div>
-        <div class="node-btn" onclick="addNode('IP Адрес', '#ffa64d')">IP Адрес</div>
-        <div class="node-btn" onclick="addNode('Компания', '#b34dff')">Компания</div>
+<div id="cy"></div>
+<div class="toolbar">
+    <div class="node-btn" onclick="openInput('Персона', 'person.jpg')"><img src="person.jpg">PERSON</div>
+    <div class="node-btn" onclick="openInput('Адрес', 'address.jpg')"><img src="address.jpg">ADDRESS</div>
+    <div class="node-btn" onclick="openInput('Домен', 'domain.jpg')"><img src="domain.jpg">DOMAIN</div>
+    <div class="node-btn" onclick="openInput('Паспорт', 'passport.jpg')"><img src="passport.jpg">PASSPORT</div>
+    <div class="node-btn" onclick="openInput('Соцсети', 'social.jpg')"><img src="social.jpg">SOCIAL ID</div>
+    <div class="node-btn" onclick="openInput('Telegram', 'telegram.jpg')"><img src="telegram.jpg">TG ID</div>
+    <div class="node-btn" onclick="openInput('IP', 'ip.jpg')"><img src="ip.jpg">IP</div>
+    <div class="node-btn" onclick="openInput('Компания', 'company.jpg')"><img src="company.jpg">COMPANY</div>
+</div>
+
+<div id="inputModal" class="modal">
+    <h3 style="margin-top:0; font-size:16px;">BOTCONNSINT</h3>
+    <p id="modalLabel" style="color:#777; font-size:12px;"></p>
+    <input type="text" id="userInput" style="width:100%; background:#111; border:none; border-bottom:2px solid #333; color:#fff; padding:8px 0; outline:none; margin-bottom:20px;">
+    <div style="display:flex; justify-content: flex-end; gap: 20px;">
+        <span onclick="closeModal()" style="color:#777; cursor:pointer;">Отмена</span>
+        <span onclick="confirmNode()" style="color:#fff; cursor:pointer; font-weight:bold;">OK</span>
     </div>
+</div>
 
-    <script>
-        // Инициализация Telegram Web App
-        const tg = window.Telegram.WebApp;
-        tg.expand(); // Разворачиваем на весь экран
+<script>
+    let cy = cytoscape({
+        container: document.getElementById('cy'),
+        style: [
+            { selector: 'node', style: { 'background-color': '#111', 'border-width': 1, 'border-color': '#333', 'label': 'data(label)', 'color': '#ccc', 'font-size': '10px', 'text-valign': 'bottom', 'text-margin-y': 8, 'width': 40, 'height': 40, 'background-image': 'data(img)', 'background-fit': 'cover' }},
+            { selector: 'edge', style: { 'width': 1.5, 'line-color': '#555', 'target-arrow-color': '#555', 'target-arrow-shape': 'triangle', 'curve-style': 'straight' }}
+        ]
+    });
 
-        // Настройка холста
-        let cy = cytoscape({
-            container: document.getElementById('cy'),
-            style: [
-                {
-                    selector: 'node',
-                    style: {
-                        'background-color': 'data(color)',
-                        'label': 'data(label)',
-                        'color': '#fff',
-                        'text-outline-color': '#000',
-                        'text-outline-width': 2,
-                        'text-valign': 'bottom',
-                        'text-margin-y': 5
-                    }
-                },
-                {
-                    selector: 'edge',
-                    style: {
-                        'width': 2,
-                        'line-color': '#555',
-                        'target-arrow-color': '#555',
-                        'target-arrow-shape': 'triangle',
-                        'curve-style': 'bezier'
-                    }
-                }
-            ],
-            elements: []
-        });
-
-        let nodeIdCounter = 0;
-        let selectedNode = null;
-
-        // Функция добавления узла (выскакивает окно ввода)
-        function addNode(category, color) {
-            let info = prompt(`BOTCONNSINT\nВведите данные для: ${category}`);
-            if (info) {
-                let id = 'node' + nodeIdCounter++;
-                cy.add({
-                    group: 'nodes',
-                    data: { id: id, label: info, color: color },
-                    position: { x: cy.width() / 2, y: cy.height() / 2 } // Появляется по центру
-                });
-            }
+    let currentCat = '', currentImg = '';
+    function openInput(cat, img) {
+        currentCat = cat; currentImg = img;
+        document.getElementById('modalLabel').innerText = "Enter " + cat.toLowerCase() + ":";
+        document.getElementById('inputModal').style.display = 'block';
+        document.getElementById('userInput').focus();
+    }
+    function closeModal() { document.getElementById('inputModal').style.display = 'none'; document.getElementById('userInput').value = ''; }
+    function confirmNode() {
+        let val = document.getElementById('userInput').value;
+        if(val) {
+            cy.add({ group: 'nodes', data: { id: Date.now().toString(), label: val, img: currentImg }, position: { x: cy.width()/2, y: cy.height()/2 } });
         }
+        closeModal();
+    }
 
-        // Логика соединения линиями (тапнул на один, тапнул на другой)
-        cy.on('tap', 'node', function(evt){
-            let node = evt.target;
-            if (!selectedNode) {
-                selectedNode = node;
-                node.style('border-width', 4).style('border-color', '#fff'); // Подсветка при выборе
-            } else {
-                // Создаем линию
-                cy.add({
-                    group: 'edges',
-                    data: { source: selectedNode.id(), target: node.id() }
-                });
-                selectedNode.style('border-width', 0); // Убираем подсветку
-                selectedNode = null;
-            }
-        });
-
-        // Сброс выбора при тапе на пустой фон
-        cy.on('tap', function(evt){
-            if(evt.target === cy && selectedNode) {
-                selectedNode.style('border-width', 0);
-                selectedNode = null;
-            }
-        });
-    </script>
+    let sourceNode = null;
+    cy.on('tap', 'node', function(e){
+        if(!sourceNode) {
+            sourceNode = e.target;
+            sourceNode.style('border-color', '#fff');
+        } else {
+            cy.add({ group: 'edges', data: { source: sourceNode.id(), target: e.target.id() } });
+            sourceNode.style('border-color', '#333');
+            sourceNode = null;
+        }
+    });
+</script>
 </body>
 </html>
